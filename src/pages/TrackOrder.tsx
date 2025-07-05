@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Search, Package, Clock, CheckCircle, Phone, Mail, MapPin } from "lucide-react";
 import { toast } from "sonner";
+import { ordersAPI } from '@/services/api';
 
 interface Order {
   orderId: string;
@@ -31,7 +32,7 @@ const TrackOrder = () => {
   const [loading, setLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
-  const handleTrackOrder = () => {
+  const handleTrackOrder = async () => {
     if (!orderId.trim()) {
       toast.error("Please enter an order ID");
       return;
@@ -41,25 +42,23 @@ const TrackOrder = () => {
     setNotFound(false);
     setOrder(null);
 
-    // Simulate loading delay
-    setTimeout(() => {
-      try {
-        const existingOrders = JSON.parse(localStorage.getItem('xeroxOrders') || '[]') as Order[];
-        const foundOrder = existingOrders.find(order => order.orderId === orderId.trim());
-        
-        if (foundOrder) {
-          setOrder(foundOrder);
-          toast.success("Order found!");
-        } else {
-          setNotFound(true);
-          toast.error("Order not found. Please check your order ID.");
-        }
-      } catch (error) {
-        console.error('Error searching for order:', error);
-        toast.error("Error searching for order");
+    try {
+      const foundOrder = await ordersAPI.getById(orderId.trim());
+      
+      if (foundOrder) {
+        setOrder(foundOrder);
+        toast.success("Order found!");
+      } else {
+        setNotFound(true);
+        toast.error("Order not found. Please check your order ID.");
       }
+    } catch (error) {
+      console.error('Error searching for order:', error);
+      setNotFound(true);
+      toast.error("Order not found. Please check your order ID.");
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const getStatusIcon = (status: string) => {

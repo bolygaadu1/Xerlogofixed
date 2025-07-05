@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import PageLayout from '@/components/layout/PageLayout';
@@ -8,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Lock } from 'lucide-react';
+import { authAPI } from '@/services/api';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -17,35 +17,38 @@ const Login = () => {
   const navigate = useNavigate();
 
   // Check if already logged in
-  const isLoggedIn = localStorage.getItem('adminLoggedIn') === 'true';
+  const isLoggedIn = localStorage.getItem('adminToken') !== null;
   
   if (isLoggedIn) {
     return <Navigate to="/admin" />;
   }
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    // In a real application, you would validate against a server
-    // For this example, we'll use hardcoded credentials
-    setTimeout(() => {
-      if (username === 'admin' && password === 'xerox123') {
-        localStorage.setItem('adminLoggedIn', 'true');
-        toast({
-          title: "Login successful",
-          description: "Welcome to the admin dashboard",
-        });
-        navigate('/admin');
-      } else {
-        toast({
-          title: "Login failed",
-          description: "Invalid username or password",
-          variant: "destructive",
-        });
-      }
+    try {
+      const response = await authAPI.login(username, password);
+      
+      // Store the token
+      localStorage.setItem('adminToken', response.token);
+      localStorage.setItem('adminUser', JSON.stringify(response.user));
+      
+      toast({
+        title: "Login successful",
+        description: "Welcome to the admin dashboard",
+      });
+      
+      navigate('/admin');
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid username or password",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   };
 
   return (

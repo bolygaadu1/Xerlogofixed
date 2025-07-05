@@ -11,9 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { FileText, Download, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { fileStorage } from '@/services/fileStorage';
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
+import { ordersAPI } from '@/services/api';
 
 type OrderFile = {
   name: string;
@@ -48,28 +48,25 @@ const OrdersList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [maxScrollPosition, setMaxScrollPosition] = useState(100);
+  const [loading, setLoading] = useState(true);
   const ordersPerPage = 10;
 
   useEffect(() => {
-    const storedOrders = JSON.parse(localStorage.getItem('xeroxOrders') || '[]');
-    const processedOrders = storedOrders.map((order: Order) => {
-      const processedFiles = order.files.map(file => {
-        if (!file.path) {
-          file.path = `/uploads/${file.name}`;
-        }
-        return file;
-      });
-      
-      return {
-        ...order,
-        files: processedFiles,
-        status: order.status || 'pending'
-      };
-    });
-    
-    setOrders(processedOrders);
-    localStorage.setItem('xeroxOrders', JSON.stringify(processedOrders));
+    loadOrders();
   }, []);
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      const ordersData = await ordersAPI.getAll();
+      setOrders(ordersData);
+    } catch (error) {
+      console.error('Error loading orders:', error);
+      toast.error('Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle scroll position updates
   const handleScrollPositionChange = (value: number[]) => {
@@ -107,19 +104,25 @@ const OrdersList = () => {
     }
   }, [dialogOpen, selectedOrder]);
 
-  const handleStatusChange = (orderId: string, newStatus: string) => {
-    const updatedOrders = orders.map(order => 
-      order.orderId === orderId ? { ...order, status: newStatus } : order
-    );
-    
-    setOrders(updatedOrders);
-    localStorage.setItem('xeroxOrders', JSON.stringify(updatedOrders));
-    
-    if (selectedOrder?.orderId === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
-    }
+  const handleStatusChange = async (orderId: string, newStatus: string) => {
+    try {
+      await ordersAPI.updateStatus(orderId, newStatus);
+      
+      const updatedOrders = orders.map(order => 
+        order.orderId === orderId ? { ...order, status: newStatus } : order
+      );
+      
+      setOrders(updatedOrders);
+      
+      if (selectedOrder?.orderId === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
 
-    toast.success(`Order status updated to ${newStatus}`);
+      toast.success(`Order status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error('Failed to update order status');
+    }
   };
 
   const viewOrderDetails = (order: Order) => {
@@ -174,49 +177,8 @@ const OrdersList = () => {
 
   const handleFileDownload = (file: OrderFile) => {
     try {
-      if (!file.path) {
-        file.path = `/uploads/${file.name}`;
-      }
-      
-      const storedFile = fileStorage.getFile(file.path);
-      
-      if (!storedFile) {
-        const allFiles = fileStorage.getAllFiles();
-        const fileByName = allFiles.find(f => f.name === file.name);
-        if (fileByName) {
-          const url = fileStorage.createDownloadUrl(fileByName);
-          if (url) {
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = file.name;
-            document.body.appendChild(a);
-            a.click();
-            URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-            toast.success(`Downloading ${file.name}`);
-            return;
-          }
-        }
-        toast.error("File not found in storage");
-        return;
-      }
-      
-      if (!storedFile.data) {
-        toast.error("File data is not available");
-        return;
-      }
-      
-      const url = URL.createObjectURL(storedFile.data);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success(`Downloading ${file.name}`);
+      // In a real implementation, this would download from the server
+      toast.info(`Download functionality would be implemented for ${file.name}`);
     } catch (error) {
       console.error('Error handling file download:', error);
       toast.error("Failed to download file");
@@ -244,6 +206,14 @@ const OrdersList = () => {
       setCurrentPage(currentPage + 1);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">Loading orders...</p>
+      </div>
+    );
+  }
 
   return (
     <div>
